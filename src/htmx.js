@@ -491,7 +491,8 @@ return (function () {
 
         function find(eltOrSelector, selector) {
             if (selector) {
-                return eltOrSelector.querySelector(selector);
+                var xpathSelector = getXPathSelector(selector);
+                return (xpathSelector ? xPathSingle(eltOrSelector, xpathSelector) : eltOrSelector.querySelector(selector));
             } else {
                 return find(getDocument(), eltOrSelector);
             }
@@ -499,7 +500,8 @@ return (function () {
 
         function findAll(eltOrSelector, selector) {
             if (selector) {
-                return eltOrSelector.querySelectorAll(selector);
+                var xpathSelector = getXPathSelector(selector);
+                return (xpathSelector ? xpathArray(eltOrSelector, xpathSelector) : eltOrSelector.querySelectorAll(selector));
             } else {
                 return findAll(getDocument(), eltOrSelector);
             }
@@ -593,6 +595,38 @@ return (function () {
             }
         }
 
+        function isXPathSelector(selector) {
+            return selector.toString().startsWith("!xpath:");
+            //return typeof a_string === 'string' && selector.startsWith("!xpath:");
+        }
+
+        function getXPathSelector(selector) {
+			if(selector.startsWith("!xpath:")) return selector.substr(7);
+            return;
+        }
+
+        function xpathResult(eltOrSelector, xpathSelector) {
+            if (xpathSelector) {
+                var evaluator = new XPathEvaluator();
+                return evaluator.evaluate(xpathSelector, eltOrSelector, null,  XPathResult.UNORDERED_NODE_ITERATOR_TYPE, null);
+            } else {
+                return xpathResult(getDocument(), eltOrSelector);
+            }
+        }
+
+        function xpathSingle(eltOrSelector, xpathSelector) {
+            return xpathResult(eltOrSelector, xpathSelector).iterateNext();
+        }
+
+        function xpathArray(eltOrSelector, xpathSelector) {
+            var arr = [];
+            var xPathResult = xpathResult(eltOrSelector, xpathSelector);
+            for (let result = xPathResult.iterateNext(); result; result = xPathResult.iterateNext()) {
+                arr.push(result);
+            }
+            return arr;
+        }
+
         function querySelectorAllExt(elt, selector) {
             if (selector.indexOf("closest ") === 0) {
                 return [closest(elt, normalizeSelector(selector.substr(8)))];
@@ -613,7 +647,8 @@ return (function () {
             } else if (selector === 'body') {
                 return [document.body];
             } else {
-                return getDocument().querySelectorAll(normalizeSelector(selector));
+                if( isXPathSelector(selector)) return findAll(elt, normalizeSelector(selector));
+                return findAll(normalizeSelector(selector));
             }
         }
 
@@ -790,7 +825,7 @@ return (function () {
                 swapStyle = oobValue;
             }
 
-            var targets = getDocument().querySelectorAll(selector);
+            var targets = findAll(selector);
             if (targets) {
                 forEach(
                     targets,
@@ -1037,7 +1072,7 @@ return (function () {
             var selector = selectOverride || getClosestAttributeValue(elt, "hx-select");
             if (selector) {
                 var newFragment = getDocument().createDocumentFragment();
-                forEach(fragment.querySelectorAll(selector), function (node) {
+                forEach(findAll(fragment, selector), function (node) {
                     newFragment.appendChild(node);
                 });
                 fragment = newFragment;
