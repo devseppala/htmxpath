@@ -491,7 +491,8 @@ return (function () {
 
         function find(eltOrSelector, selector) {
             if (selector) {
-                return eltOrSelector.querySelector(selector);
+                var xpathSelector = getXPathSelector(selector);
+                return (xpathSelector ? xPathSingle(eltOrSelector, xpathSelector) : eltOrSelector.querySelector(selector));
             } else {
                 return find(getDocument(), eltOrSelector);
             }
@@ -499,7 +500,8 @@ return (function () {
 
         function findAll(eltOrSelector, selector) {
             if (selector) {
-                return eltOrSelector.querySelectorAll(selector);
+                var xpathSelector = getXPathSelector(selector);
+                return (xpathSelector ? xpathArray(eltOrSelector, xpathSelector) : eltOrSelector.querySelectorAll(selector));
             } else {
                 return findAll(getDocument(), eltOrSelector);
             }
@@ -593,6 +595,38 @@ return (function () {
             }
         }
 
+        function isXPathSelector(selector) {
+            return selector.toString().startsWith("!xpath:");
+            //return typeof a_string === 'string' && selector.startsWith("!xpath:");
+        }
+
+        function getXPathSelector(selector) {
+			if(selector.startsWith("!xpath:")) return selector.substr(7);
+            return;
+        }
+
+        function xpathResult(eltOrSelector, xpathSelector) {
+            if (xpathSelector) {
+                var evaluator = new XPathEvaluator();
+                return evaluator.evaluate(xpathSelector, eltOrSelector, null,  XPathResult.UNORDERED_NODE_ITERATOR_TYPE, null);
+            } else {
+                return xpathResult(getDocument(), eltOrSelector);
+            }
+        }
+
+        function xpathSingle(eltOrSelector, xpathSelector) {
+            return xpathResult(eltOrSelector, xpathSelector).iterateNext();
+        }
+
+        function xpathArray(eltOrSelector, xpathSelector) {
+            var arr = [];
+            var xPathResult = xpathResult(eltOrSelector, xpathSelector);
+            for (let result = xPathResult.iterateNext(); result; result = xPathResult.iterateNext()) {
+                arr.push(result);
+            }
+            return arr;
+        }
+
         function querySelectorAllExt(elt, selector) {
             if (selector.indexOf("closest ") === 0) {
                 return [closest(elt, normalizeSelector(selector.substr(8)))];
@@ -613,7 +647,8 @@ return (function () {
             } else if (selector === 'body') {
                 return [document.body];
             } else {
-                return getDocument().querySelectorAll(normalizeSelector(selector));
+                if( isXPathSelector(selector)) return findAll(elt, normalizeSelector(selector));
+                return findAll(normalizeSelector(selector));
             }
         }
 
@@ -790,7 +825,7 @@ return (function () {
                 swapStyle = oobValue;
             }
 
-            var targets = getDocument().querySelectorAll(selector);
+            var targets = findAll(selector);
             if (targets) {
                 forEach(
                     targets,
@@ -1037,7 +1072,7 @@ return (function () {
             var selector = selectOverride || getClosestAttributeValue(elt, "hx-select");
             if (selector) {
                 var newFragment = getDocument().createDocumentFragment();
-                forEach(fragment.querySelectorAll(selector), function (node) {
+                forEach(findAll(fragment, selector), function (node) {
                     newFragment.appendChild(node);
                 });
                 fragment = newFragment;
@@ -2430,7 +2465,7 @@ return (function () {
         }
 
         function shouldInclude(elt) {
-            if(elt.name === "" || elt.name == null || elt.disabled) {
+            if(elt.name === "" || elt.name == null || elt.disabled || closest(elt, "fieldset[disabled]")) {
                 return false;
             }
             // ignore "submitter" types (see jQuery src/serialize.js)
@@ -3752,34 +3787,25 @@ return (function () {
         //====================================================================
         // Initialization
         //====================================================================
-        /**
-         * We want to initialize the page elements after DOMContentLoaded
-         * fires, but there isn't always a good way to tell whether
-         * it has already fired when we get here or not.
-         */
-        function ready(functionToCall) {
-            // call the function exactly once no matter how many times this is called
-            var callReadyFunction = function() {
-                if (!functionToCall) return;
-                functionToCall();
-                functionToCall = null;
-            };
+        var isReady = false
+        getDocument().addEventListener('DOMContentLoaded', function() {
+            isReady = true
+        })
 
-            if (getDocument().readyState === "complete") {
-                // DOMContentLoaded definitely fired, we can initialize the page
-                callReadyFunction();
-            }
-            else {
-                /* DOMContentLoaded *maybe* already fired, wait for
-                 * the next DOMContentLoaded or readystatechange event
-                 */
-                getDocument().addEventListener("DOMContentLoaded", function() {
-                    callReadyFunction();
-                });
-                getDocument().addEventListener("readystatechange", function() {
-                    if (getDocument().readyState !== "complete") return;
-                    callReadyFunction();
-                });
+        /**
+         * Execute a function now if DOMContentLoaded has fired, otherwise listen for it.
+         *
+         * This function uses isReady because there is no realiable way to ask the browswer whether
+         * the DOMContentLoaded event has already been fired; there's a gap between DOMContentLoaded
+         * firing and readystate=complete.
+         */
+        function ready(fn) {
+            // Checking readyState here is a failsafe in case the htmx script tag entered the DOM by
+            // some means other than the initial page load.
+            if (isReady || getDocument().readyState === 'complete') {
+                fn();
+            } else {
+                getDocument().addEventListener('DOMContentLoaded', fn);
             }
         }
 
