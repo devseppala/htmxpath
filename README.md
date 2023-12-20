@@ -13,16 +13,16 @@ Implementation details:
 
 1. Selected !xpath: prefix to separate XPath selectors from CSS selectors
     - I wanted a prefix that could newer be a start of a valid CSS selector. 
-3. Created a couple of functions for dealing with XPath queries.
+2. Created a couple of functions for dealing with XPath queries.
     - isXPathSelector(selector)
     - getXPathSelector(selector)
     - xpathResult(eltOrSelector, xpathSelector)
     - xpathSingle(eltOrSelector, xpathSelector)
     - xpathArray(eltOrSelector, xpathSelector)
-5.  xpathArray function converts XPathResult to Node array
-    -    - Standard way to search elements using CSS selectors is to use querySelectorAll(), which returns an NodeList object. Array has the same accessor functions as NodeList, so it can be use interchangeably. 
-6. Changed find() and findAll() functions to recognize Xpath selectors with !xpath: prefix
-7. Changed couple of direct querySelectorAll() usages to go through the find/findAll functions instead and thus properly process xpath selectors.
+        - xpathArray function converts XPathResult to Node array
+        - Standard way to search elements using CSS selectors is to use querySelectorAll(), which returns an NodeList object. Array has the same accessor functions as NodeList, so it can be use interchangeably. 
+3. Changed find() and findAll() functions to recognize Xpath selectors with !xpath: prefix
+4. Changed couple of direct querySelectorAll() usages to go through the find/findAll functions instead and thus properly process xpath selectors.
 
 Some issues for consideration:
 1. Is !xpath: prefix the best choice to identify XPath expressions?
