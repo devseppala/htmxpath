@@ -1,111 +1,121 @@
-[![</> htmx](https://raw.githubusercontent.com/bigskysoftware/htmx/master/www/static/img/htmx_logo.1.png "high power tools for HTML")](https://htmx.org)
+# htmXPath
 
-*high power tools for HTML*
-
-[![Discord](https://img.shields.io/discord/725789699527933952)](https://htmx.org/discord)
-[![Netlify](https://img.shields.io/netlify/dba3fc85-d9c9-476a-a35a-e52a632cef78)](https://app.netlify.com/sites/htmx/deploys)
-[![Bundlephobia](https://badgen.net/bundlephobia/dependency-count/htmx.org)](https://bundlephobia.com/result?p=htmx.org)
-[![Bundlephobia](https://badgen.net/bundlephobia/minzip/htmx.org)](https://bundlephobia.com/result?p=htmx.org)
+*XPath enabled htmx*
 
 ## introduction
 
-htmx allows you to access  [AJAX](https://htmx.org/docs#ajax), [CSS Transitions](https://htmx.org/docs#css_transitions),
-[WebSockets](https://htmx.org/docs#websockets) and [Server Sent Events](https://htmx.org/docs#sse)
-directly in HTML, using [attributes](https://htmx.org/reference#attributes), so you can build
-[modern user interfaces](https://htmx.org/examples) with the [simplicity](https://en.wikipedia.org/wiki/HATEOAS) and
-[power](https://www.ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm) of hypertext
+experimental fork of htmx that in addition to CSS selectors also supports XPath selectors. By using "!xpath:" prefix in
+front of the selector, you can use XPath selectors in most places instead of CSS selectors (!xpath:/html/body/h1[2] , selects the
+second h1 heading under the body element). Currently XPath can be used in hx-select , hx-target and hx-swap-oob attributes.
+Implementation for XPath selectors is not IE11 compliant.
 
-htmx is small ([~14k min.gz'd](https://unpkg.com/htmx.org/dist/)),
-[dependency-free](https://github.com/bigskysoftware/htmx/blob/master/package.json),
-[extendable](https://htmx.org/extensions) &
-IE11 compatible
+Implementation details:
 
-## motivation
+1. Selected !xpath: prefix to separate XPath selectors from CSS selectors
+    - I wanted a prefix that could newer be a start of a valid CSS selector. 
+3. Created a couple of functions for dealing with XPath queries.
+    - isXPathSelector(selector)
+    - getXPathSelector(selector)
+    - xpathResult(eltOrSelector, xpathSelector)
+    - xpathSingle(eltOrSelector, xpathSelector)
+    - xpathArray(eltOrSelector, xpathSelector)
+5.  xpathArray function converts XPathResult to Node array
+Standard way to search elements using CSS selectors is to use querySelectorAll(), which returns an NodeList object. Array has the same accessor functions as NodeList, so it can be use interchangeably. 
+6. Changed find() and findAll() functions to recognize Xpath selectors with !xpath: prefix
+7. Changed couple of direct querySelectorAll() usages to go through the find/findAll functions instead and thus properly process xpath selectors.
 
-* Why should only `<a>` and `<form>` be able to make HTTP requests?
-* Why should only `click` & `submit` events trigger them?
-* Why should only GET & POST be available?
-* Why should you only be able to replace the *entire* screen?
+Some issues for consideration:
+1. Is !xpath: prefix the best choice to identify XPath expressions?
+2. Is XPathResult.UNORDERED_NODE_ITERATOR_TYPE best choice for XPathResult type, should it be ORDERD or SNAPSHOT ?
 
-By removing these arbitrary constraints htmx completes HTML as a
-[hypertext](https://en.wikipedia.org/wiki/Hypertext)
-
-## quick start
-
-```html
-  <script src="https://unpkg.com/htmx.org@1.9.9"></script>
-  <!-- have a button POST a click via AJAX -->
-  <button hx-post="/clicked" hx-swap="outerHTML">
-    Click Me
-  </button>
+Below is a diff that highlights the changes that I have made to htmx.js 1.9.9 .
+```patch
+@@ -491,7 +491,8 @@ return (function () {
+ 
+         function find(eltOrSelector, selector) {
+             if (selector) {
+-                return eltOrSelector.querySelector(selector);
++                var xpathSelector = getXPathSelector(selector);
++                return (xpathSelector ? xPathSingle(eltOrSelector, xpathSelector) : eltOrSelector.querySelector(selector));
+             } else {
+                 return find(getDocument(), eltOrSelector);
+             }
+@@ -499,7 +500,8 @@ return (function () {
+ 
+         function findAll(eltOrSelector, selector) {
+             if (selector) {
+-                return eltOrSelector.querySelectorAll(selector);
++                var xpathSelector = getXPathSelector(selector);
++                return (xpathSelector ? xpathArray(eltOrSelector, xpathSelector) : eltOrSelector.querySelectorAll(selector));
+             } else {
+                 return findAll(getDocument(), eltOrSelector);
+             }
+@@ -593,6 +595,38 @@ return (function () {
+             }
+         }
+ 
++        function isXPathSelector(selector) {
++            return selector.toString().startsWith("!xpath:");
++            //return typeof a_string === 'string' && selector.startsWith("!xpath:");
++        }
++
++        function getXPathSelector(selector) {
++			if(selector.startsWith("!xpath:")) return selector.substr(7);
++            return;
++        }
++
++        function xpathResult(eltOrSelector, xpathSelector) {
++            if (xpathSelector) {
++                var evaluator = new XPathEvaluator();
++                return evaluator.evaluate(xpathSelector, eltOrSelector, null,  XPathResult.UNORDERED_NODE_ITERATOR_TYPE, null);
++            } else {
++                return xpathResult(getDocument(), eltOrSelector);
++            }
++        }
++
++        function xpathSingle(eltOrSelector, xpathSelector) {
++            return xpathResult(eltOrSelector, xpathSelector).iterateNext();
++        }
++
++        function xpathArray(eltOrSelector, xpathSelector) {
++            var arr = [];
++            var xPathResult = xpathResult(eltOrSelector, xpathSelector);
++            for (let result = xPathResult.iterateNext(); result; result = xPathResult.iterateNext()) {
++                arr.push(result);
++            }
++            return arr;
++        }
++
+         function querySelectorAllExt(elt, selector) {
+             if (selector.indexOf("closest ") === 0) {
+                 return [closest(elt, normalizeSelector(selector.substr(8)))];
+@@ -613,7 +647,8 @@ return (function () {
+             } else if (selector === 'body') {
+                 return [document.body];
+             } else {
+-                return getDocument().querySelectorAll(normalizeSelector(selector));
++                if( isXPathSelector(selector)) return findAll(elt, normalizeSelector(selector));
++                return findAll(normalizeSelector(selector));
+             }
+         }
+ 
+@@ -790,7 +825,7 @@ return (function () {
+                 swapStyle = oobValue;
+             }
+ 
+-            var targets = getDocument().querySelectorAll(selector);
++            var targets = findAll(selector);
+             if (targets) {
+                 forEach(
+                     targets,
+@@ -1037,7 +1072,7 @@ return (function () {
+             var selector = selectOverride || getClosestAttributeValue(elt, "hx-select");
+             if (selector) {
+                 var newFragment = getDocument().createDocumentFragment();
+-                forEach(fragment.querySelectorAll(selector), function (node) {
++                forEach(findAll(fragment, selector), function (node) {
+                     newFragment.appendChild(node);
+                 });
+                 fragment = newFragment;
 ```
 
-The [`hx-post`](https://htmx.org/attributes/hx-post) and [`hx-swap`](https://htmx.org/attributes/hx-swap) attributes tell htmx:
-
-> "When a user clicks on this button, issue an AJAX request to /clicked, and replace the entire button with the response"
-
-htmx is the successor to [intercooler.js](http://intercoolerjs.org)
-
-### installing as a node package
-
-To install using npm:
-
-```
-npm install htmx.org --save
-```
-
-Note there is an old broken package called `htmx`.  This is `htmx.org`.
-
-## website & docs
-
-* <https://htmx.org>
-* <https://htmx.org/docs>
-
-## contributing
-Want to contribute? Check out our [contribution guidelines](CONTRIBUTING.md)
-
-No time? Then [become a sponsor](https://github.com/sponsors/bigskysoftware#sponsors)
-
-### hacking guide
-
-To develop htmx locally, you will need to install the development dependencies.
-
-__Requires Node 15.__
-
-Run:
-
-```
-npm install
-```
-
-Then, run a web server in the root.
-
-This is easiest with:
-
-```
-npx serve
-```
-
-You can then run the test suite by navigating to:
-
-<http://0.0.0.0:3000/test/>
-
-At this point you can modify `/src/htmx.js` to add features, and then add tests in the appropriate area under `/test`.
-
-* `/test/index.html` - the root test page from which all other tests are included
-* `/test/attributes` - attribute specific tests
-* `/test/core` - core functionality tests
-* `/test/core/regressions.js` - regression tests
-* `/test/ext` - extension tests
-* `/test/manual` - manual tests that cannot be automated
-
-htmx uses the [mocha](https://mochajs.org/) testing framework, the [chai](https://www.chaijs.com/) assertion framework
-and [sinon](https://sinonjs.org/releases/v9/fake-xhr-and-server/) to mock out AJAX requests.  They are all OK.
-
-You can also run live tests and demo of the WebSockets and Server-Side Events extensions with `npm run ws-tests`
-
-## haiku
-
-*javascript fatigue:<br/>
-longing for a hypertext<br/>
-already in hand*
