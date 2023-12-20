@@ -20,7 +20,7 @@ Implementation details:
     - xpathSingle(eltOrSelector, xpathSelector)
     - xpathArray(eltOrSelector, xpathSelector)
 5.  xpathArray function converts XPathResult to Node array
-Standard way to search elements using CSS selectors is to use querySelectorAll(), which returns an NodeList object. Array has the same accessor functions as NodeList, so it can be use interchangeably. 
+    - Standard way to search elements using CSS selectors is to use querySelectorAll(), which returns an NodeList object. Array has the same accessor functions as NodeList, so it can be use interchangeably. 
 6. Changed find() and findAll() functions to recognize Xpath selectors with !xpath: prefix
 7. Changed couple of direct querySelectorAll() usages to go through the find/findAll functions instead and thus properly process xpath selectors.
 
