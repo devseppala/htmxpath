@@ -18,6 +18,16 @@ describe("hx-target attribute", function(){
         div1.innerHTML.should.equal("Clicked!");
     });
 
+    it('targets an adjacent element with xpath properly', function()
+    {
+        this.server.respondWith("GET", "/test", "Clicked!");
+        var btn = make('<button hx-target="!xpath:id(\'d1\')" hx-get="/test">Click Me!</button>')
+        var div1 = make('<div id="d1"></div>')
+        btn.click();
+        this.server.respond();
+        div1.innerHTML.should.equal("Clicked!");
+    });
+
     it('targets a parent element properly', function()
     {
         this.server.respondWith("GET", "/test", "Clicked!");

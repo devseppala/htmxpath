@@ -18,11 +18,31 @@ describe("BOOTSTRAP - htmx AJAX Tests", function(){
         div.innerHTML.should.equal("<div id=\"d1\">foo</div>");
     });
 
+    it('properly handles a partial of HTML with xpath selector', function()
+    {
+        var i = 1;
+        this.server.respondWith("GET", "/test", "<div id='d1'>foo</div><div id='d2'>bar</div>");
+        var div = make('<div hx-get="/test" hx-select="!xpath:/html/body/div[1]"></div>');
+        div.click();
+        this.server.respond();
+        div.innerHTML.should.equal("<div id=\"d1\">foo</div>");
+    });
+
     it('properly handles a full HTML document', function()
     {
         var i = 1;
         this.server.respondWith("GET", "/test", "<html><body><div id='d1'>foo</div><div id='d2'>bar</div></body></html>");
         var div = make('<div hx-get="/test" hx-select="#d1"></div>');
+        div.click();
+        this.server.respond();
+        div.innerHTML.should.equal("<div id=\"d1\">foo</div>");
+    });
+
+    it('properly handles a full HTML document with xpath selector', function()
+    {
+        var i = 1;
+        this.server.respondWith("GET", "/test", "<html><body><div id='d1'>foo</div><div id='d2'>bar</div></body></html>");
+        var div = make('<div hx-get="/test" hx-select="!xpath:/html/body/div[@id][1]"></div>');
         div.click();
         this.server.respond();
         div.innerHTML.should.equal("<div id=\"d1\">foo</div>");

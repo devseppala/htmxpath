@@ -92,8 +92,32 @@ describe("hx-swap-oob attribute", function () {
         byId("d1").innerHTML.should.equal("Swapped7");
     })
 
+    it('oob swaps can use XPath selectors to match up', function () {
+        this.server.respondWith("GET", "/test", "<div>Clicked<div hx-swap-oob='innerHTML:!xpath://*[@oob-foo]'>Swapped7</div></div>");
+        var div = make('<div hx-get="/test">click me</div>');
+        make('<div id="d1" oob-foo="bar"></div>');
+        div.click();
+        this.server.respond();
+        should.equal(byId("d1").getAttribute("oob-foo"), "bar");
+        div.innerHTML.should.equal("<div>Clicked</div>");
+        byId("d1").innerHTML.should.equal("Swapped7");
+    })
+
     it('swaps into all targets that match the selector (innerHTML)', function () {
         this.server.respondWith("GET", "/test", "<div>Clicked</div><div class='target' hx-swap-oob='innerHTML:.target'>Swapped8</div>");
+        var div = make('<div hx-get="/test">click me</div>');
+        make('<div id="d1">No swap</div>');
+        make('<div id="d2" class="target">Not swapped</div>');
+        make('<div id="d3" class="target">Not swapped</div>');
+        div.click();
+        this.server.respond();
+        byId("d1").innerHTML.should.equal("No swap");
+        byId("d2").innerHTML.should.equal("Swapped8");
+        byId("d3").innerHTML.should.equal("Swapped8");
+    })
+
+    it('swaps into all targets that match the XPath selector (innerHTML)', function () {
+        this.server.respondWith("GET", "/test", "<div>Clicked</div><div class='target' hx-swap-oob='innerHTML:!xpath://*[@class=\"target\"]'>Swapped8</div>");
         var div = make('<div hx-get="/test">click me</div>');
         make('<div id="d1">No swap</div>');
         make('<div id="d2" class="target">Not swapped</div>');
